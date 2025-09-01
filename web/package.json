@@ -1,0 +1,25 @@
+{
+  "name": "booklibrary-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+  "dev": "vite",
+  "prebuild": "mkdir -p public && cp -f ../arkaplan.jpg public/arkaplan.jpg 2>/dev/null || true && cp -f ../faviconblack.png public/faviconblack.png 2>/dev/null || true && cp -f '../logo (1).png' public/logo.png 2>/dev/null || true",
+  "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^10.12.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.27.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
