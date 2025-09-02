@@ -16,6 +16,7 @@ import Profile from './pages/Profile'
 import NewBook from './pages/NewBook'
 import LibraryPage from './pages/LibraryPage'
 import BookPage from './pages/BookPage'
+import Writer from './pages/Writer'
 
 export default function App() {
   const location = useLocation();
@@ -109,6 +110,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <BookPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/books/:id/write"
+          element={
+            <ProtectedRoute>
+              <Writer />
             </ProtectedRoute>
           }
         />

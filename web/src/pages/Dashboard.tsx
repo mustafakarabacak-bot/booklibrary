@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
-import { collection, onSnapshot, orderBy, query, where, addDoc, serverTimestamp, getDocs, DocumentData } from 'firebase/firestore'
+import { collection, onSnapshot, orderBy, query, where, addDoc, serverTimestamp, getDocs, DocumentData, updateDoc, doc, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
 export default function Dashboard() {
@@ -10,10 +10,14 @@ export default function Dashboard() {
   const [libs, setLibs] = useState<any[]>([])
   const [books, setBooks] = useState<any[]>([])
   const [openCreateLib, setOpenCreateLib] = useState(false)
+  const [isEditingLib, setIsEditingLib] = useState(false)
+  const [editingLibId, setEditingLibId] = useState<string | null>(null)
   const [libName, setLibName] = useState('')
   const [libDesc, setLibDesc] = useState('')
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
+  const [libActionsFor, setLibActionsFor] = useState<any | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<any | null>(null)
 
   // Realtime fetch user's libraries
   useEffect(() => {
@@ -53,16 +57,28 @@ export default function Dashboard() {
     try {
       const selected = books.filter(b => selectedBookIds.has(b.id))
       const coverUrl = selected[0]?.coverUrl || null
-      await addDoc(collection(db, 'libraries'), {
-        ownerId: user.uid,
-        name: libName.trim(),
-        description: libDesc.trim() || null,
-        bookIds: Array.from(selectedBookIds),
-        coverUrl,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
+      if (isEditingLib && editingLibId) {
+        await updateDoc(doc(db, 'libraries', editingLibId), {
+          name: libName.trim(),
+          description: libDesc.trim() || null,
+          bookIds: Array.from(selectedBookIds),
+          coverUrl,
+          updatedAt: serverTimestamp(),
+        })
+      } else {
+        await addDoc(collection(db, 'libraries'), {
+          ownerId: user.uid,
+          name: libName.trim(),
+          description: libDesc.trim() || null,
+          bookIds: Array.from(selectedBookIds),
+          coverUrl,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      }
       setOpenCreateLib(false)
+      setIsEditingLib(false)
+      setEditingLibId(null)
       setLibName('')
       setLibDesc('')
       setSelectedBookIds(new Set())
@@ -72,17 +88,22 @@ export default function Dashboard() {
   }
 
   const LibCard = ({ lib }: { lib: any }) => (
-    <button className="tile" onClick={() => navigate(`/libraries/${lib.id}`)}>
+    <div className="tile" onClick={() => navigate(`/libraries/${lib.id}`)}>
       {lib.coverUrl ? (
         <img className="tile-cover" src={lib.coverUrl} alt={lib.name} />
       ) : (
         <div className="tile-cover placeholder" />
       )}
-      <div className="tile-body">
-        <div className="tile-title">{lib.name}</div>
-        <div className="tile-sub">{Array.isArray(lib.bookIds) ? lib.bookIds.length : 0} kitap</div>
+      <div className="tile-body tile-body-row">
+        <div className="tile-info">
+          <div className="tile-title">{lib.name}</div>
+          <div className="tile-sub">{Array.isArray(lib.bookIds) ? lib.bookIds.length : 0} kitap</div>
+        </div>
+        <button className="menu-btn" title="Seçenekler" onClick={(e) => { e.stopPropagation(); setLibActionsFor(lib); }}>
+          ⋯
+        </button>
       </div>
-    </button>
+    </div>
   )
 
   const BookCard = ({ book }: { book: any }) => (
@@ -133,10 +154,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {openCreateLib && (
+  {openCreateLib && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal" style={{ maxWidth: 760 }}>
-            <h3 style={{ marginTop: 0 }}>Kütüphane Oluştur</h3>
+    <h3 style={{ marginTop: 0 }}>{isEditingLib ? 'Kütüphaneyi Düzenle' : 'Kütüphane Oluştur'}</h3>
             <form className="form" onSubmit={onCreateLibrary}>
               <label>
                 İsim
@@ -165,10 +186,52 @@ export default function Dashboard() {
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => setOpenCreateLib(false)}>Vazgeç</button>
-                <button className="btn" disabled={saving || !libName.trim()} type="submit">Oluştur</button>
+                <button type="button" className="btn btn-ghost" onClick={() => { setOpenCreateLib(false); setIsEditingLib(false); setEditingLibId(null); }}>Vazgeç</button>
+                <button className="btn" disabled={saving || !libName.trim()} type="submit">{isEditingLib ? 'Kaydet' : 'Oluştur'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {libActionsFor && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => setLibActionsFor(null)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Kütüphane Seçenekleri</h3>
+            <p className="muted" style={{ marginBottom: 10 }}>{libActionsFor.name}</p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <button className="btn" onClick={() => {
+                // Düzenleme akışını başlat
+                setLibName(libActionsFor.name || '')
+                setLibDesc(libActionsFor.description || '')
+                setSelectedBookIds(new Set(Array.isArray(libActionsFor.bookIds) ? libActionsFor.bookIds : []))
+                setIsEditingLib(true)
+                setEditingLibId(libActionsFor.id)
+                setLibActionsFor(null)
+                setOpenCreateLib(true)
+              }}>Düzenle</button>
+              <button className="btn btn-ghost" onClick={() => {
+                setConfirmDelete(libActionsFor)
+                setLibActionsFor(null)
+              }}>Sil</button>
+              <button className="btn btn-ghost" onClick={() => setLibActionsFor(null)}>Vazgeç</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => setConfirmDelete(null)}>
+          <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Kütüphane silinsin mi?</h3>
+            <p className="muted">“{confirmDelete.name}” kütüphanesini silmek üzeresiniz. Bu işlem geri alınamaz.</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Vazgeç</button>
+              <button className="btn" onClick={async () => {
+                try { await deleteDoc(doc(db, 'libraries', confirmDelete.id)) } catch {}
+                setConfirmDelete(null)
+              }}>Evet, sil</button>
+            </div>
           </div>
         </div>
       )}

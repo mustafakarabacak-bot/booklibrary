@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -17,6 +17,11 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 auth.languageCode = 'tr';
+// Oturum kalıcı olsun (sekme/kapama sonrası da korunsun)
+setPersistence(auth, browserLocalPersistence)
+  .catch(() => setPersistence(auth, indexedDBLocalPersistence))
+  .catch(() => setPersistence(auth, inMemoryPersistence))
+  .catch(() => { /* ignore */ })
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
